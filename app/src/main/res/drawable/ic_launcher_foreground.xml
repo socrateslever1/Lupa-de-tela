@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Magnifier rim and lens shadow -->
+    <path
+        android:fillColor="#155E75"
+        android:pathData="M48,27 C34.2,27 23,38.2 23,52 C23,65.8 34.2,77 48,77 C53.4,77 58.4,75.3 62.5,72.4 L75.6,85.5 C77.2,87.1 79.8,87.1 81.4,85.5 L84.5,82.4 C86.1,80.8 86.1,78.2 84.5,76.6 L71.4,63.5 C74.3,59.4 76,54.4 76,49 C76,35.2 64.8,24 51,24 Z" />
+    <!-- Magnifier outer bright ring -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M49,27 C36.3,27 26,37.3 26,50 C26,62.7 36.3,73 49,73 C54.3,73 59.2,71.2 63.1,68.2 L75.9,81 C76.7,81.8 78,81.8 78.8,81 L81,78.8 C81.8,78 81.8,76.7 81,75.9 L68.2,63.1 C71.2,59.2 73,54.3 73,49 C73,36.3 62.7,26 50,26 Z" />
+    <!-- Inner optical glass surface -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M49,33 C39.6,33 32,40.6 32,50 C32,59.4 39.6,67 49,67 C58.4,67 66,59.4 66,50 C66,40.6 58.4,33 49,33 Z" />
+    <!-- Zoom reticle plus mark in center -->
+    <path
+        android:fillColor="#F0F9FF"
+        android:pathData="M47.5,43 L50.5,43 L50.5,48.5 L56,48.5 L56,51.5 L50.5,51.5 L50.5,57 L47.5,57 L47.5,51.5 L42,51.5 L42,48.5 L47.5,48.5 Z" />
+    <!-- Glass light reflection gleam arc -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M37,42 C39.5,37.5 44,35 49,35 C50,35 50.5,34.2 50.5,33.5 C50.5,32.8 50,32 49,32 C43,32 37.5,35 34.5,40.5 C34.1,41.2 34.4,42.2 35.1,42.6 C35.8,43 36.7,42.7 37,42 Z" />
+</vector>

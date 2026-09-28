@@ -1,0 +1,6 @@
+{
+  "name": "Lente de Aumento",
+  "description": "Ferramenta de ampliação interna e acessibilidade visual com controle flutuante, escala de texto e modos de alto contraste.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

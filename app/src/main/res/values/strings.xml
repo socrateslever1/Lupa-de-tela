@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Lente de Aumento</string>
+    <string name="accessibility_service_description">Controle de ampliação visual de tela e lente de aumento para interfaces e aplicativos.</string>
+</resources>
