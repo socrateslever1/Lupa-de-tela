@@ -155,13 +155,13 @@ fun FloatingHandleSimulationView(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Lente Flutuante na Tela",
+                                    text = "Controle de Zoom da Lupa",
                                     color = TextPrimaryLight,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 )
                                 Text(
-                                    text = if (isServiceRunning) "Ativo • Arraste e puxe a borda" else "Ative para usar sobre qualquer aplicativo",
+                                    text = if (isServiceRunning) "Ativo • Aba lateral pronta para ajustar zoom" else "Ative para exibir a aba rápida de controle",
                                     color = if (isServiceRunning) GreenSuccess else TextSecondaryLight,
                                     fontSize = 11.sp
                                 )
@@ -287,7 +287,7 @@ fun FloatingHandleSimulationView(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "• Mova a lente arrastando o topo.\n• Puxe a borda inferior ou o canto amarelo ⤡ para deixar do tamanho exato que desejar.",
+                        text = "• A lente com borda laranja é a Lupa Nativa do Android (amplia Gmail, fotos e outros apps).\n• O botão na lateral da tela abre o controle rápido para aumentar ou diminuir o zoom (+ e -).",
                         color = TextSecondaryLight,
                         fontSize = 11.sp,
                         lineHeight = 16.sp

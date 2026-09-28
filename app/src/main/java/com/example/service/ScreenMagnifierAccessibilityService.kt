@@ -81,6 +81,15 @@ class ScreenMagnifierAccessibilityService : AccessibilityService() {
     }
 
     fun resetMagnification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val config = android.accessibilityservice.MagnificationConfig.Builder()
+                    .setMode(android.accessibilityservice.MagnificationConfig.MAGNIFICATION_MODE_WINDOW)
+                    .setScale(1.0f)
+                    .build()
+                magnificationController.setMagnificationConfig(config, false)
+            } catch (_: Exception) {}
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 magnificationController.reset(true)
