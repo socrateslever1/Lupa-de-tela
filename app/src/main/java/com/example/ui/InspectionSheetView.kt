@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.CropSquare
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lens
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.ZoomIn
@@ -110,6 +111,10 @@ fun InspectionSheetView(
 
     // Full screen pan offset when in FULL_SCREEN mode
     var fullScreenPanOffset by remember { mutableStateOf(Offset.Zero) }
+
+    // Dynamic Pull-to-Resize lens dimensions
+    var customLensWidth by remember { mutableFloatStateOf(240f) }
+    var customLensHeight by remember { mutableFloatStateOf(200f) }
 
     // Dynamic color styling based on active custom view mode
     val (bgColor, textColor, headerColor, accentBorder) = when (activeMode) {
@@ -311,24 +316,9 @@ fun InspectionSheetView(
 
             // 2. INTERNAL OPTICAL LOUPE (Lente de Aumento Óptica Móvel sobre a tela)
             if (lensShape != LensShape.FULL_SCREEN) {
-                val lensWidthDp = when (lensShape) {
-                    LensShape.SQUARE -> 220.dp
-                    LensShape.CIRCULAR -> 220.dp
-                    LensShape.RECTANGULAR -> 320.dp
-                    LensShape.FULL_SCREEN -> 0.dp
-                }
-                val lensHeightDp = when (lensShape) {
-                    LensShape.SQUARE -> 220.dp
-                    LensShape.CIRCULAR -> 220.dp
-                    LensShape.RECTANGULAR -> 150.dp
-                    LensShape.FULL_SCREEN -> 0.dp
-                }
-                val lensClipShape = when (lensShape) {
-                    LensShape.CIRCULAR -> CircleShape
-                    LensShape.SQUARE -> RoundedCornerShape(14.dp)
-                    LensShape.RECTANGULAR -> RoundedCornerShape(14.dp)
-                    LensShape.FULL_SCREEN -> RoundedCornerShape(0.dp)
-                }
+                val lensWidthDp = customLensWidth.dp
+                val lensHeightDp = customLensHeight.dp
+                val lensClipShape = RoundedCornerShape(16.dp)
 
                 val lensWidthPx = with(density) { lensWidthDp.toPx() }
                 val lensHeightPx = with(density) { lensHeightDp.toPx() }
@@ -469,74 +459,65 @@ fun InspectionSheetView(
                         )
                     }
 
-                    // Quick Format Switcher Bar at Top of Lens
+                    // Clean Header at Top of Lens
                     Row(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                            .background(Color(0xCC0F172A))
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Current format badge
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xDD0B1120))
-                                .border(1.dp, LensCyanBright.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = lensShape.icon,
-                                    contentDescription = null,
-                                    tint = LensCyanBright,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = lensShape.shortLabel.uppercase(),
-                                    color = LensCyanBright,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = LensCyanBright,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Lente • ${customLensWidth.roundToInt()}×${customLensHeight.roundToInt()}",
+                                color = LensCyanBright,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
 
-                        // Quick Toggle Button: Square <-> Circular
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xEE0F172A))
-                                .border(1.dp, HighContrastYellow.copy(alpha = 0.8f), RoundedCornerShape(12.dp))
-                                .clickable {
-                                    val nextShape = when (lensShape) {
-                                        LensShape.CIRCULAR -> LensShape.SQUARE
-                                        LensShape.SQUARE -> LensShape.CIRCULAR
-                                        LensShape.RECTANGULAR -> LensShape.SQUARE
-                                        LensShape.FULL_SCREEN -> LensShape.SQUARE
-                                    }
-                                    onLensShapeChange(nextShape)
+                        Text(
+                            text = "Puxe o canto ⤡",
+                            color = HighContrastYellow,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    // Pull-to-Resize Corner Handle (Bottom-Right)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(topStart = 14.dp, bottomEnd = 16.dp))
+                            .background(Color(0xEE0F172A))
+                            .border(1.5.dp, HighContrastYellow, RoundedCornerShape(topStart = 14.dp, bottomEnd = 16.dp))
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    customLensWidth = (customLensWidth + dragAmount.x).coerceIn(160f, 380f)
+                                    customLensHeight = (customLensHeight + dragAmount.y).coerceIn(130f, 500f)
                                     hapticHelper.performStepClick(hapticFeedback)
                                 }
-                                .padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (lensShape == LensShape.SQUARE) Icons.Default.Lens else Icons.Default.CropSquare,
-                                    contentDescription = "Mudar formato da lupa",
-                                    tint = HighContrastYellow,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (lensShape == LensShape.SQUARE) "Mudar p/ Redonda" else "Mudar p/ Quadrada",
-                                    color = HighContrastYellow,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
                             }
-                        }
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInFull,
+                            contentDescription = "Puxar para redimensionar a lente",
+                            tint = HighContrastYellow,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
 
                     // Floating Zoom Badge on Lens Bottom

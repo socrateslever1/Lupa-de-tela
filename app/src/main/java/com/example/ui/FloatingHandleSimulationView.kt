@@ -28,13 +28,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CropSquare
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SettingsAccessibility
@@ -98,19 +95,18 @@ fun FloatingHandleSimulationView(
     val hapticHelper = remember { HapticFeedbackHelper(context) }
 
     var isServiceRunning by remember { mutableStateOf(false) }
-    var isAccessibilityEnabled by remember {
-        mutableStateOf(ScreenMagnifierAccessibilityService.isAccessibilityServiceEnabled(context))
-    }
 
     // Floating UI state
     var isMenuExpanded by remember { mutableStateOf(false) }
     var isZoomActive by remember { mutableStateOf(true) }
-    var isFullScreenMode by remember { mutableStateOf(false) }
-    var isSquareLens by remember { mutableStateOf(true) }
 
-    var handleOffsetY by remember { mutableFloatStateOf(240f) }
-    var windowOffsetX by remember { mutableFloatStateOf(20f) }
-    var windowOffsetY by remember { mutableFloatStateOf(170f) }
+    // Dynamic Pull-to-Resize lens dimensions
+    var lensWidth by remember { mutableFloatStateOf(270f) }
+    var lensHeight by remember { mutableFloatStateOf(230f) }
+
+    var handleOffsetY by remember { mutableFloatStateOf(260f) }
+    var windowOffsetX by remember { mutableFloatStateOf(24f) }
+    var windowOffsetY by remember { mutableFloatStateOf(160f) }
     var zoomLevel by remember { mutableFloatStateOf(2.5f) }
     val maxZoom = 10.0f
     val minZoom = 1.0f
@@ -125,7 +121,7 @@ fun FloatingHandleSimulationView(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Service Toggle & Status Card
+            // Simplified Service Control Card
             Card(
                 colors = CardDefaults.cardColors(containerColor = DarkNavySurface),
                 shape = RoundedCornerShape(18.dp),
@@ -159,13 +155,13 @@ fun FloatingHandleSimulationView(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Controle Flutuante na Tela",
+                                    text = "Lente Flutuante na Tela",
                                     color = TextPrimaryLight,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 )
                                 Text(
-                                    text = if (isServiceRunning) "Ativo • Aba na borda da tela" else "Toque no botão para ativar a aba",
+                                    text = if (isServiceRunning) "Ativo • Arraste e puxe a borda" else "Ative para usar sobre qualquer aplicativo",
                                     color = if (isServiceRunning) GreenSuccess else TextSecondaryLight,
                                     fontSize = 11.sp
                                 )
@@ -204,59 +200,28 @@ fun FloatingHandleSimulationView(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Shortcuts for Native Android Accessibility & Display Scale
-                    Row(
+                    // Simplified shortcut button
+                    OutlinedButton(
+                        onClick = {
+                            PermissionHelper.openAccessibilitySettings(context)
+                            hapticHelper.performStepClick(hapticFeedback)
+                        },
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
                     ) {
-                        Button(
-                            onClick = {
-                                PermissionHelper.openAccessibilitySettings(context)
-                                hapticHelper.performStepClick(hapticFeedback)
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isAccessibilityEnabled) Color(0xFF065F46) else LensCyan
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = if (isAccessibilityEnabled) Icons.Default.CheckCircle else Icons.Default.SettingsAccessibility,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (isAccessibilityEnabled) "Lupa OS Ativa" else "Lupa no Sistema",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                PermissionHelper.openDisplaySettings(context)
-                                hapticHelper.performStepClick(hapticFeedback)
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FormatSize,
-                                contentDescription = null,
-                                tint = LensCyanBright,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Fonte e Tela",
-                                color = TextPrimaryLight,
-                                fontSize = 11.sp
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.SettingsAccessibility,
+                            contentDescription = null,
+                            tint = HighContrastYellow,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Configurações de Acessibilidade do Android",
+                            color = TextPrimaryLight,
+                            fontSize = 11.5.sp
+                        )
                     }
                 }
             }
@@ -273,13 +238,26 @@ fun FloatingHandleSimulationView(
                     .weight(1f)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "TESTE DE AMPLIAÇÃO INTERNA",
-                        color = LensCyanBright,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "ÁREA DE TESTE",
+                            color = LensCyanBright,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.5.sp
+                        )
+
+                        Text(
+                            text = "Puxe o canto ⤡ da lente",
+                            color = HighContrastYellow,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -290,14 +268,14 @@ fun FloatingHandleSimulationView(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                text = "TEXTO ORIGINAL SOB A TELA (FONTE 6pt):",
+                                text = "TEXTO SOB A LENTE (FONTE REDUZIDA):",
                                 color = HighContrastYellow,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "A Lente Digital amplia elementos e textos com nitidez contínua de 1.0x até 10.0x. Ao arrastar a janela de foco sobre esta caixa, o conteúdo no interior da lente é ampliado imediatamente.",
+                                text = "Composição: Cloridrato de magnésio 250mg, zinco quelatado 15mg. Posologia: 1 comprimido por via oral a cada 12 horas. Conservar em local fresco entre 15°C e 30°C. Lote: MG2026-X9. Fabricação: 08/2026. Validade: 08/2029.",
                                 color = TextPrimaryLight,
                                 fontSize = 9.sp,
                                 lineHeight = 13.sp,
@@ -309,7 +287,7 @@ fun FloatingHandleSimulationView(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "• Toque no botão 'LUPA' na borda esquerda para abrir o menu rápido.\n• A janela de foco abaixo exibe o texto ampliado em tempo real.",
+                        text = "• Mova a lente arrastando o topo.\n• Puxe a borda inferior ou o canto amarelo ⤡ para deixar do tamanho exato que desejar.",
                         color = TextSecondaryLight,
                         fontSize = 11.sp,
                         lineHeight = 16.sp
@@ -364,7 +342,7 @@ fun FloatingHandleSimulationView(
         }
 
         // ==========================================
-        // 2. MENU RÁPIDO DE CONTROLES
+        // 2. MENU RÁPIDO SIMPLIFICADO
         // ==========================================
         AnimatedVisibility(
             visible = isMenuExpanded,
@@ -374,7 +352,7 @@ fun FloatingHandleSimulationView(
             Box(
                 modifier = Modifier
                     .offset { IntOffset(16, (handleOffsetY - 40f).roundToInt().coerceIn(60, 1000)) }
-                    .width(310.dp)
+                    .width(280.dp)
                     .clip(RoundedCornerShape(22.dp))
                     .background(Color(0xF50F172A))
                     .border(2.dp, LensCyanBright, RoundedCornerShape(22.dp))
@@ -387,21 +365,12 @@ fun FloatingHandleSimulationView(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = null,
-                                tint = LensCyanBright,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "AMPLIAÇÃO",
-                                color = LensCyanBright,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(
+                            text = "LUPA DE TELA",
+                            color = LensCyanBright,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
 
                         Button(
                             onClick = {
@@ -419,44 +388,15 @@ fun FloatingHandleSimulationView(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Zoom toggle
+                    // Controles de Escala (+ e -)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .background(Color(0xFF1E293B))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "Zoom da Tela",
-                            color = TextPrimaryLight,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Switch(
-                            checked = isZoomActive,
-                            onCheckedChange = { active ->
-                                isZoomActive = active
-                                hapticHelper.performStepClick(hapticFeedback)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = LensCyanBright,
-                                checkedTrackColor = LensCyanDark
-                            ),
-                            modifier = Modifier.size(width = 46.dp, height = 28.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Scale controls (+ and -)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
                     ) {
                         IconButton(
                             onClick = {
@@ -467,7 +407,7 @@ fun FloatingHandleSimulationView(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF1E293B))
+                                .background(Color(0xFF334155))
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Remove,
@@ -477,19 +417,12 @@ fun FloatingHandleSimulationView(
                             )
                         }
 
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "${String.format("%.1f", zoomLevel)}x",
-                                color = if (zoomLevel >= maxZoom - 0.05f) HighContrastYellow else LensCyanBright,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                            Text(
-                                text = "Nível de Aumento",
-                                color = TextSecondaryLight,
-                                fontSize = 9.sp
-                            )
-                        }
+                        Text(
+                            text = "${String.format("%.1f", zoomLevel)}x",
+                            color = if (zoomLevel >= maxZoom - 0.05f) HighContrastYellow else LensCyanBright,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black
+                        )
 
                         IconButton(
                             onClick = {
@@ -528,100 +461,50 @@ fun FloatingHandleSimulationView(
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
 
-                    // Mode: Janela vs Tela Cheia
-                    Text(
-                        text = "MODO DE LENTE",
-                        color = LensCyanBright,
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-
+                    // Ativar/Desativar Janela
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (!isFullScreenMode) LensCyan else Color(0xFF1E293B))
-                                .clickable {
-                                    isFullScreenMode = false
-                                    hapticHelper.performStepClick(hapticFeedback)
-                                }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.CropSquare,
-                                    contentDescription = null,
-                                    tint = if (!isFullScreenMode) Color.White else TextSecondaryLight,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Janela",
-                                    color = if (!isFullScreenMode) Color.White else TextSecondaryLight,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Janela Visível",
+                            color = TextSecondaryLight,
+                            fontSize = 12.sp
+                        )
 
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isFullScreenMode) LensCyan else Color(0xFF1E293B))
-                                .clickable {
-                                    isFullScreenMode = true
-                                    hapticHelper.performStepClick(hapticFeedback)
-                                }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Fullscreen,
-                                    contentDescription = null,
-                                    tint = if (isFullScreenMode) Color.White else TextSecondaryLight,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Tela Cheia",
-                                    color = if (isFullScreenMode) Color.White else TextSecondaryLight,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        Switch(
+                            checked = isZoomActive,
+                            onCheckedChange = { active ->
+                                isZoomActive = active
+                                hapticHelper.performStepClick(hapticFeedback)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = LensCyanBright,
+                                checkedTrackColor = LensCyanDark
+                            ),
+                            modifier = Modifier.size(width = 46.dp, height = 28.dp)
+                        )
                     }
                 }
             }
         }
 
         // ==========================================
-        // 3. JANELA DE FOCO AJUSTÁVEL (LENTE COM CONTEÚDO AMPLIADO)
+        // 3. JANELA DE FOCO COM REDIMENSIONAMENTO DIRETO NA BORDA / CANTO
         // ==========================================
-        if (isZoomActive && !isFullScreenMode) {
-            val windowWidth = if (isSquareLens) 250.dp else 310.dp
-            val windowHeight = if (isSquareLens) 250.dp else 190.dp
-
+        if (isZoomActive) {
             Box(
                 modifier = Modifier
                     .offset { IntOffset(windowOffsetX.roundToInt(), windowOffsetY.roundToInt()) }
-                    .size(width = windowWidth, height = windowHeight)
+                    .size(width = lensWidth.dp, height = lensHeight.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xF5080E1A))
                     .border(2.5.dp, LensCyanBright, RoundedCornerShape(20.dp))
                     .shadow(20.dp)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // Header with no text wrapping
+                    // Top Bar: Arraste para mover a lente
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -644,47 +527,45 @@ fun FloatingHandleSimulationView(
                                 tint = LensCyanBright,
                                 modifier = Modifier.size(14.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Lente",
                                 color = LensCyanBright,
-                                fontSize = 11.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${lensWidth.roundToInt()}×${lensHeight.roundToInt()}",
+                                color = TextSecondaryLight,
+                                fontSize = 10.sp
                             )
                         }
 
-                        // Toggle Format
-                        Box(
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Fechar Lente",
+                            tint = TextSecondaryLight,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF0F172A))
-                                .border(1.dp, HighContrastYellow, RoundedCornerShape(8.dp))
+                                .size(16.dp)
                                 .clickable {
-                                    isSquareLens = !isSquareLens
+                                    isZoomActive = false
                                     hapticHelper.performStepClick(hapticFeedback)
                                 }
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = if (isSquareLens) "▢ 1:1" else "▭ 16:9",
-                                color = HighContrastYellow,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        )
                     }
 
-                    // Optical Focus Viewport with REALLY AMPLIFIED text
+                    // Optical Focus Viewport com ampliação dinâmica
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(6.dp)
+                            .padding(5.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF000000))
                             .border(1.dp, LensCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                     ) {
-                        // Dynamically magnified content under the lens
+                        // Conteúdo ampliado dinamicamente sob a lente
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -694,7 +575,7 @@ fun FloatingHandleSimulationView(
                                     translationX = -(windowOffsetX * (zoomLevel - 1f) * 0.4f)
                                     translationY = -(windowOffsetY * (zoomLevel - 1f) * 0.4f)
                                 }
-                                .padding(12.dp)
+                                .padding(10.dp)
                         ) {
                             Column {
                                 Text(
@@ -705,7 +586,7 @@ fun FloatingHandleSimulationView(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "A Lente Digital amplia elementos e textos com nitidez contínua de 1.0x até 10.0x. O conteúdo renderizado sob a lente é exibido em tamanho ampliado com fidelidade visual.",
+                                    text = "Composição: Cloridrato de magnésio 250mg, zinco quelatado 15mg. Posologia: 1 comprimido por via oral a cada 12 horas. Conservar em local fresco entre 15°C e 30°C.",
                                     color = TextPrimaryLight,
                                     fontSize = 9.sp,
                                     lineHeight = 13.sp,
@@ -714,29 +595,29 @@ fun FloatingHandleSimulationView(
                             }
                         }
 
-                        // Reticle lines
+                        // Retícula central
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val cx = size.width / 2f
                             val cy = size.height / 2f
                             drawCircle(
-                                color = LensCyanBright.copy(alpha = 0.35f),
-                                radius = 28.dp.toPx()
+                                color = LensCyanBright.copy(alpha = 0.3f),
+                                radius = 24.dp.toPx()
                             )
                             drawLine(
                                 color = LensCyanBright,
-                                start = Offset(cx - 12.dp.toPx(), cy),
-                                end = Offset(cx + 12.dp.toPx(), cy),
+                                start = Offset(cx - 10.dp.toPx(), cy),
+                                end = Offset(cx + 10.dp.toPx(), cy),
                                 strokeWidth = 1.5.dp.toPx()
                             )
                             drawLine(
                                 color = LensCyanBright,
-                                start = Offset(cx, cy - 12.dp.toPx()),
-                                end = Offset(cx, cy + 12.dp.toPx()),
+                                start = Offset(cx, cy - 10.dp.toPx()),
+                                end = Offset(cx, cy + 10.dp.toPx()),
                                 strokeWidth = 1.5.dp.toPx()
                             )
                         }
 
-                        // Zoom Badge
+                        // Zoom Badge no rodapé
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -749,12 +630,72 @@ fun FloatingHandleSimulationView(
                             Text(
                                 text = "${String.format("%.1f", zoomLevel)}x",
                                 color = if (zoomLevel >= maxZoom - 0.05f) HighContrastYellow else LensCyanBright,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }
                     }
                 }
+
+                // ==========================================
+                // 4. ALÇA DE PUXAR NA BORDA / CANTO INFERIOR DIREITO
+                // O usuário toca e puxa para redimensionar a lente
+                // ==========================================
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(topStart = 14.dp, bottomEnd = 18.dp))
+                        .background(Color(0xEE0F172A))
+                        .border(1.5.dp, HighContrastYellow, RoundedCornerShape(topStart = 14.dp, bottomEnd = 18.dp))
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                lensWidth = (lensWidth + dragAmount.x).coerceIn(160f, 380f)
+                                lensHeight = (lensHeight + dragAmount.y).coerceIn(130f, 500f)
+                                hapticHelper.performStepClick(hapticFeedback)
+                            }
+                        }
+                        .padding(4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInFull,
+                        contentDescription = "Puxar para redimensionar a lente",
+                        tint = HighContrastYellow,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Borda inferior (puxar para baixo/cima para ajustar a altura)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(12.dp)
+                        .padding(horizontal = 46.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                lensHeight = (lensHeight + dragAmount.y).coerceIn(130f, 500f)
+                            }
+                        }
+                )
+
+                // Borda direita (puxar para os lados para ajustar a largura)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(12.dp)
+                        .fillMaxSize()
+                        .padding(vertical = 46.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                lensWidth = (lensWidth + dragAmount.x).coerceIn(160f, 380f)
+                            }
+                        }
+                )
             }
         }
     }

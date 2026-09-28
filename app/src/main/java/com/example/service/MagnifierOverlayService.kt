@@ -8,7 +8,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -36,32 +38,27 @@ class MagnifierOverlayService : Service() {
     private var handleView: FrameLayout? = null
     private var quickMenuView: FrameLayout? = null
     private var focusWindowView: FrameLayout? = null
+    private var dimensionLabel: TextView? = null
 
     // State variables
     private var isZoomActive = true
-    private var currentZoom = 2.0f
+    private var currentZoom = 2.5f
     private val minZoom = 1.0f
     private val maxZoom = 10.0f
     private val zoomStep = 0.5f
-
-    // Lens mode: false = Janela Flutuante, true = Tela Cheia
-    private var isFullScreenMode = false
-    private var isSquareWindow = true
-
-    // Contrast filter
-    private var currentFilterIndex = 0
-    private val filterNames = listOf("Normal", "Alto Contraste", "Invertido", "Amarelo no Preto", "P&B")
 
     // Dock positioning
     private var handleX = 0
     private var handleY = 400
     private var isDockedOnRight = false
 
-    // Window position & dimensions
+    // Window position & dimensions (Dynamic pull-to-resize)
     private var focusWindowX = 60
     private var focusWindowY = 240
-    private var focusWindowWidth = 260
-    private var focusWindowHeight = 260
+    private var focusWindowWidth = 280
+    private var focusWindowHeight = 240
+    private val minWindowW = 160
+    private val minWindowH = 120
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -239,15 +236,15 @@ class MagnifierOverlayService : Service() {
     }
 
     /**
-     * 2. Menu Rápido de Controles
-     * Expandido a partir da aba lateral com controles essenciais.
+     * 2. Menu Rápido Simplificado e Direto
+     * Sem excesso de botões: apenas Escala (+ e -), Ligar/Desligar e Ocultar.
      */
     @SuppressLint("ClickableViewAccessibility", "SetTextI18n")
     private fun openQuickMenu() {
         if (quickMenuView != null) return
 
         val displayMetrics = resources.displayMetrics
-        val menuWidth = (displayMetrics.widthPixels * 0.86f).toInt().coerceIn(300, 420)
+        val menuWidth = (displayMetrics.widthPixels * 0.82f).toInt().coerceIn(280, 360)
 
         val params = WindowManager.LayoutParams(
             menuWidth,
@@ -263,34 +260,34 @@ class MagnifierOverlayService : Service() {
             } else {
                 20
             }
-            y = (handleY - 50).coerceIn(100, displayMetrics.heightPixels - 500)
+            y = (handleY - 50).coerceIn(100, displayMetrics.heightPixels - 450)
         }
 
         val root = FrameLayout(this).apply {
             val bg = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = 28f
+                cornerRadius = 24f
                 setColor(0xF50F172A.toInt())
                 setStroke(2, 0xFF38BDF8.toInt())
             }
             background = bg
             elevation = 28f
-            setPadding(18, 16, 18, 16)
+            setPadding(16, 14, 16, 14)
         }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
 
-        // Header: Title and Collapse button
+        // Header: Título e Botão Ocultar
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(4, 0, 4, 10)
+            setPadding(2, 0, 2, 8)
         }
 
         val title = TextView(this).apply {
-            text = "AMPLIAÇÃO"
+            text = "LUPA DE TELA"
             setTextColor(0xFF38BDF8.toInt())
             textSize = 13f
             paint.isFakeBoldText = true
@@ -303,9 +300,9 @@ class MagnifierOverlayService : Service() {
             setTextColor(0xFFE2E8F0.toInt())
             textSize = 11f
             paint.isFakeBoldText = true
-            setPadding(16, 8, 16, 8)
+            setPadding(14, 6, 14, 6)
             val btnBg = GradientDrawable().apply {
-                cornerRadius = 14f
+                cornerRadius = 12f
                 setColor(0xFF1E293B.toInt())
                 setStroke(1, 0xFF64748B.toInt())
             }
@@ -318,87 +315,33 @@ class MagnifierOverlayService : Service() {
         header.addView(collapseBtn)
         content.addView(header)
 
-        // Control 1: Ativar / Desativar Zoom
-        val toggleRow = LinearLayout(this).apply {
+        // Controle 1: Nível de Ampliação (+ e -)
+        val zoomRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(6, 6, 6, 8)
+            setPadding(2, 8, 2, 8)
             val rowBg = GradientDrawable().apply {
-                cornerRadius = 14f
+                cornerRadius = 16f
                 setColor(0xFF1E293B.toInt())
             }
             background = rowBg
         }
 
-        val toggleLabel = TextView(this).apply {
-            text = "Zoom da Tela"
-            setTextColor(Color.WHITE)
-            textSize = 12f
-            paint.isFakeBoldText = true
-            setPadding(12, 0, 0, 0)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        toggleRow.addView(toggleLabel)
-
-        val toggleBtn = TextView(this).apply {
-            text = if (isZoomActive) "Ativado" else "Desativado"
-            setTextColor(if (isZoomActive) 0xFF0B132B.toInt() else Color.WHITE)
-            textSize = 11f
-            paint.isFakeBoldText = true
-            setPadding(16, 8, 16, 8)
-            val btnBg = GradientDrawable().apply {
-                cornerRadius = 12f
-                setColor(if (isZoomActive) 0xFF10B981.toInt() else 0xFF475569.toInt())
-            }
-            background = btnBg
-            setOnClickListener {
-                isZoomActive = !isZoomActive
-                text = if (isZoomActive) "Ativado" else "Desativado"
-                setTextColor(if (isZoomActive) 0xFF0B132B.toInt() else Color.WHITE)
-                val newBg = GradientDrawable().apply {
-                    cornerRadius = 12f
-                    setColor(if (isZoomActive) 0xFF10B981.toInt() else 0xFF475569.toInt())
-                }
-                background = newBg
-                updateFocusWindowVisibility()
-                syncWithNativeAccessibility()
-                hapticHelper.performStepClick()
-            }
-        }
-        toggleRow.addView(toggleBtn)
-        content.addView(toggleRow)
-
-        // Control 2: Níveis de ampliação de escala (+ e -)
-        val zoomRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(4, 10, 4, 6)
-        }
-
-        val zoomReadout = TextView(this).apply {
-            text = "${String.format("%.1f", currentZoom)}x"
-            setTextColor(0xFFFDE68A.toInt())
-            textSize = 16f
-            paint.isFakeBoldText = true
-            setPadding(6, 0, 10, 0)
-        }
-
         val minusBtn = TextView(this).apply {
             text = " - "
             setTextColor(Color.WHITE)
-            textSize = 18f
+            textSize = 20f
             paint.isFakeBoldText = true
             gravity = Gravity.CENTER
-            setPadding(24, 6, 24, 6)
+            setPadding(20, 8, 20, 8)
             val btnBg = GradientDrawable().apply {
-                cornerRadius = 14f
+                cornerRadius = 12f
                 setColor(0xFF334155.toInt())
             }
             background = btnBg
             setOnClickListener {
                 if (currentZoom > minZoom) {
                     currentZoom = (currentZoom - zoomStep).coerceAtLeast(minZoom)
-                    zoomReadout.text = "${String.format("%.1f", currentZoom)}x"
                     updateFocusWindowZoom()
                     syncWithNativeAccessibility()
                     hapticHelper.performStepClick()
@@ -407,32 +350,31 @@ class MagnifierOverlayService : Service() {
         }
         zoomRow.addView(minusBtn)
 
-        val zoomTitle = TextView(this).apply {
-            text = "Escala"
-            setTextColor(0xFF94A3B8.toInt())
-            textSize = 11f
+        val zoomReadout = TextView(this).apply {
+            text = "${String.format("%.1f", currentZoom)}x"
+            setTextColor(0xFFFDE68A.toInt())
+            textSize = 18f
+            paint.isFakeBoldText = true
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-        zoomRow.addView(zoomTitle)
         zoomRow.addView(zoomReadout)
 
         val plusBtn = TextView(this).apply {
             text = " + "
             setTextColor(Color.WHITE)
-            textSize = 18f
+            textSize = 20f
             paint.isFakeBoldText = true
             gravity = Gravity.CENTER
-            setPadding(24, 6, 24, 6)
+            setPadding(20, 8, 20, 8)
             val btnBg = GradientDrawable().apply {
-                cornerRadius = 14f
+                cornerRadius = 12f
                 setColor(0xFF0284C7.toInt())
             }
             background = btnBg
             setOnClickListener {
                 if (currentZoom < maxZoom) {
                     currentZoom = (currentZoom + zoomStep).coerceAtMost(maxZoom)
-                    zoomReadout.text = "${String.format("%.1f", currentZoom)}x"
                     updateFocusWindowZoom()
                     syncWithNativeAccessibility()
                     hapticHelper.onZoomChanged(currentZoom, maxZoom)
@@ -445,158 +387,57 @@ class MagnifierOverlayService : Service() {
         zoomRow.addView(plusBtn)
         content.addView(zoomRow)
 
-        // Control 3: Alternar modo de lente (janela flutuante móvel ou ampliação de tela cheia)
-        val modeRow = LinearLayout(this).apply {
+        // Controle 2: Ligar / Desligar Lupa
+        val toggleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(4, 6, 4, 6)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(6, 8, 6, 4)
         }
 
-        val windowModeBtn = TextView(this)
-        val fullScreenModeBtn = TextView(this)
-
-        fun updateModeButtons() {
-            windowModeBtn.apply {
-                text = "Janela Flutuante"
-                setTextColor(if (!isFullScreenMode) Color.WHITE else 0xFF94A3B8.toInt())
-                textSize = 10.5f
-                paint.isFakeBoldText = !isFullScreenMode
-                gravity = Gravity.CENTER
-                setPadding(10, 8, 10, 8)
-                val bg = GradientDrawable().apply {
-                    cornerRadius = 12f
-                    setColor(if (!isFullScreenMode) 0xFF0284C7.toInt() else 0xFF1E293B.toInt())
-                }
-                background = bg
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginEnd = 6
-                }
-            }
-
-            fullScreenModeBtn.apply {
-                text = "Tela Cheia"
-                setTextColor(if (isFullScreenMode) Color.WHITE else 0xFF94A3B8.toInt())
-                textSize = 10.5f
-                paint.isFakeBoldText = isFullScreenMode
-                gravity = Gravity.CENTER
-                setPadding(10, 8, 10, 8)
-                val bg = GradientDrawable().apply {
-                    cornerRadius = 12f
-                    setColor(if (isFullScreenMode) 0xFF0284C7.toInt() else 0xFF1E293B.toInt())
-                }
-                background = bg
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-        }
-
-        windowModeBtn.setOnClickListener {
-            if (isFullScreenMode) {
-                isFullScreenMode = false
-                updateModeButtons()
-                recreateFocusWindow()
-                syncWithNativeAccessibility()
-                hapticHelper.performStepClick()
-            }
-        }
-
-        fullScreenModeBtn.setOnClickListener {
-            if (!isFullScreenMode) {
-                isFullScreenMode = true
-                updateModeButtons()
-                recreateFocusWindow()
-                syncWithNativeAccessibility()
-                hapticHelper.performStepClick()
-            }
-        }
-
-        updateModeButtons()
-        modeRow.addView(windowModeBtn)
-        modeRow.addView(fullScreenModeBtn)
-        content.addView(modeRow)
-
-        // Control 4: Atalhos para escala do sistema / tamanho da fonte / acessibilidade
-        val shortcutRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(4, 6, 4, 4)
-        }
-
-        val fontBtn = TextView(this).apply {
-            text = "Fonte & Exibição"
-            setTextColor(0xFF38BDF8.toInt())
-            textSize = 10.5f
-            paint.isFakeBoldText = true
-            gravity = Gravity.CENTER
-            setPadding(10, 8, 10, 8)
-            val btnBg = GradientDrawable().apply {
-                cornerRadius = 12f
-                setColor(0xFF1E293B.toInt())
-                setStroke(1, 0xFF38BDF8.toInt())
-            }
-            background = btnBg
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginEnd = 6
-            }
-            setOnClickListener {
-                try {
-                    val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
-                } catch (_: Exception) {
-                    val intent = Intent(Settings.ACTION_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
-                }
-                hapticHelper.performStepClick()
-            }
-        }
-        shortcutRow.addView(fontBtn)
-
-        val isAccessEnabled = ScreenMagnifierAccessibilityService.isAccessibilityServiceEnabled(this)
-        val accessBtn = TextView(this).apply {
-            text = if (isAccessEnabled) "Lupa OS Ativa" else "Ativar no Sistema"
-            setTextColor(if (isAccessEnabled) 0xFF10B981.toInt() else 0xFFFDE68A.toInt())
-            textSize = 10.5f
-            paint.isFakeBoldText = true
-            gravity = Gravity.CENTER
-            setPadding(10, 8, 10, 8)
-            val btnBg = GradientDrawable().apply {
-                cornerRadius = 12f
-                setColor(0xFF1E293B.toInt())
-                setStroke(1, if (isAccessEnabled) 0xFF10B981.toInt() else 0xFFFDE68A.toInt())
-            }
-            background = btnBg
+        val toggleLabel = TextView(this).apply {
+            text = "Janela Visível"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 12f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        toggleRow.addView(toggleLabel)
+
+        val toggleBtn = TextView(this).apply {
+            text = if (isZoomActive) "Ativada" else "Oculta"
+            setTextColor(if (isZoomActive) 0xFF0B132B.toInt() else Color.WHITE)
+            textSize = 11f
+            paint.isFakeBoldText = true
+            setPadding(14, 6, 14, 6)
+            val btnBg = GradientDrawable().apply {
+                cornerRadius = 10f
+                setColor(if (isZoomActive) 0xFF10B981.toInt() else 0xFF475569.toInt())
+            }
+            background = btnBg
             setOnClickListener {
-                try {
-                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
-                } catch (_: Exception) {
-                    val intent = Intent(Settings.ACTION_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
+                isZoomActive = !isZoomActive
+                text = if (isZoomActive) "Ativada" else "Oculta"
+                val newBg = GradientDrawable().apply {
+                    cornerRadius = 10f
+                    setColor(if (isZoomActive) 0xFF10B981.toInt() else 0xFF475569.toInt())
                 }
+                background = newBg
+                updateFocusWindowVisibility()
+                syncWithNativeAccessibility()
                 hapticHelper.performStepClick()
             }
         }
-        shortcutRow.addView(accessBtn)
-        content.addView(shortcutRow)
+        toggleRow.addView(toggleBtn)
+        content.addView(toggleRow)
 
-        // Close Service Button
-        val closeServiceBtn = TextView(this).apply {
-            text = "Encerrar Serviço"
-            setTextColor(0xFFEF4444.toInt())
+        // Dica de redimensionamento direto
+        val hintText = TextView(this).apply {
+            text = "Dica: Puxe o canto inferior direito ⤡ da lente para alterar a largura e altura livremente."
+            setTextColor(0xFF38BDF8.toInt())
             textSize = 10f
             gravity = Gravity.CENTER
-            setPadding(0, 8, 0, 0)
-            setOnClickListener {
-                stopSelf()
-            }
+            setPadding(4, 8, 4, 4)
         }
-        content.addView(closeServiceBtn)
+        content.addView(hintText)
 
         root.addView(content)
         quickMenuView = root
@@ -620,15 +461,15 @@ class MagnifierOverlayService : Service() {
             val metrics = resources.displayMetrics
             val cx = (focusWindowX + focusWindowWidth / 2f).coerceIn(0f, metrics.widthPixels.toFloat())
             val cy = (focusWindowY + focusWindowHeight / 2f).coerceIn(0f, metrics.heightPixels.toFloat())
-            service.applyMagnification(currentZoom, cx, cy, !isFullScreenMode)
+            service.applyMagnification(currentZoom, cx, cy, true)
         } else {
             service?.resetMagnification()
         }
     }
 
     /**
-     * 3. Mecanismo de Ampliação Interna
-     * Janela de foco ajustável que amplia digitalmente os elementos gráficos e textos renderizados na tela.
+     * 3. Janela de Foco Ajustável com REDIMENSIONAMENTO DIRETO NA BORDA
+     * O usuário pode puxar a borda / canto para deixar no tamanho exato que desejar.
      */
     @SuppressLint("ClickableViewAccessibility", "SetTextI18n")
     private fun showFocusWindow() {
@@ -637,26 +478,6 @@ class MagnifierOverlayService : Service() {
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
-
-        if (isFullScreenMode) {
-            focusWindowWidth = screenWidth
-            focusWindowHeight = screenHeight
-            focusWindowX = 0
-            focusWindowY = 0
-        } else {
-            focusWindowWidth = if (isSquareWindow) {
-                (screenWidth * 0.74f).toInt().coerceIn(240, 360)
-            } else {
-                (screenWidth * 0.88f).toInt().coerceIn(280, 450)
-            }
-            focusWindowHeight = if (isSquareWindow) {
-                focusWindowWidth
-            } else {
-                (screenHeight * 0.32f).toInt().coerceIn(180, 300)
-            }
-            focusWindowX = (screenWidth - focusWindowWidth) / 2
-            focusWindowY = (screenHeight - focusWindowHeight) / 3
-        }
 
         val params = WindowManager.LayoutParams(
             focusWindowWidth,
@@ -674,22 +495,26 @@ class MagnifierOverlayService : Service() {
         val root = FrameLayout(this).apply {
             val bg = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = if (isFullScreenMode) 0f else 28f
+                cornerRadius = 22f
                 setColor(0x18080E1A.toInt())
-                setStroke(if (isFullScreenMode) 6 else 3, 0xFF38BDF8.toInt())
+                setStroke(3, 0xFF38BDF8.toInt())
             }
             background = bg
-            setPadding(8, 8, 8, 8)
+            setPadding(4, 4, 4, 4)
         }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
         }
 
         // ==========================================
-        // Window Header: Anti-wrap, sleek horizontal bar
+        // Top Bar: Mover a lente e fechar
         // ==========================================
-        val windowHeader = LinearLayout(this).apply {
+        val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             val barBg = GradientDrawable().apply {
@@ -697,75 +522,53 @@ class MagnifierOverlayService : Service() {
                 setColor(0xF00F172A.toInt())
             }
             background = barBg
-            setPadding(10, 6, 10, 6)
+            setPadding(10, 6, 8, 6)
         }
 
         val searchIcon = ImageView(this).apply {
             setImageResource(android.R.drawable.ic_menu_search)
             setColorFilter(0xFF38BDF8.toInt())
         }
-        windowHeader.addView(searchIcon, LinearLayout.LayoutParams(24, 24))
+        topBar.addView(searchIcon, LinearLayout.LayoutParams(22, 22))
 
         val title = TextView(this).apply {
-            text = if (isFullScreenMode) "Tela Cheia" else "Lente"
+            text = "Lente"
             setTextColor(0xFF38BDF8.toInt())
-            textSize = 11.5f
+            textSize = 12f
             paint.isFakeBoldText = true
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            setPadding(6, 0, 8, 0)
+            setPadding(6, 0, 6, 0)
+        }
+        topBar.addView(title)
+
+        val dimenText = TextView(this).apply {
+            text = "${focusWindowWidth}×${focusWindowHeight}"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 10f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-        windowHeader.addView(title)
+        dimensionLabel = dimenText
+        topBar.addView(dimenText)
 
-        if (!isFullScreenMode) {
-            val shapeToggle = TextView(this).apply {
-                text = if (isSquareWindow) "▢ 1:1" else "▭ 16:9"
-                setTextColor(0xFFFDE68A.toInt())
-                textSize = 10f
-                paint.isFakeBoldText = true
-                setPadding(8, 4, 8, 4)
-                val btnBg = GradientDrawable().apply {
-                    cornerRadius = 8f
-                    setColor(0xFF1E293B.toInt())
-                    setStroke(1, 0xFFFDE68A.toInt())
-                }
-                background = btnBg
-                setOnClickListener {
-                    isSquareWindow = !isSquareWindow
-                    recreateFocusWindow()
-                    hapticHelper.performStepClick()
-                }
-            }
-            windowHeader.addView(shapeToggle)
-        }
-
-        val filterToggle = TextView(this).apply {
-            text = filterNames[currentFilterIndex]
-            setTextColor(Color.WHITE)
-            textSize = 9.5f
-            setPadding(8, 4, 8, 4)
-            val btnBg = GradientDrawable().apply {
-                cornerRadius = 8f
-                setColor(0xFF334155.toInt())
-            }
-            background = btnBg
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                marginStart = 6
-            }
+        // Botão Fechar rápido
+        val closeBtn = TextView(this).apply {
+            text = "✕"
+            setTextColor(0xFF94A3B8.toInt())
+            textSize = 13f
+            paint.isFakeBoldText = true
+            setPadding(10, 2, 10, 2)
             setOnClickListener {
-                currentFilterIndex = (currentFilterIndex + 1) % filterNames.size
-                text = filterNames[currentFilterIndex]
+                isZoomActive = false
+                updateFocusWindowVisibility()
+                syncWithNativeAccessibility()
                 hapticHelper.performStepClick()
             }
         }
-        windowHeader.addView(filterToggle)
-        content.addView(windowHeader)
+        topBar.addView(closeBtn)
+        content.addView(topBar)
 
-        // Viewport Area
+        // ==========================================
+        // Viewport: Área Central da Lente
+        // ==========================================
         val viewport = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -773,93 +576,162 @@ class MagnifierOverlayService : Service() {
                 1f
             )
             val vBg = GradientDrawable().apply {
-                cornerRadius = 16f
-                setColor(0x220284C7.toInt())
-                setStroke(1, 0x6638BDF8.toInt())
+                cornerRadius = 14f
+                setColor(0x1F0284C7.toInt())
+                setStroke(1, 0x5538BDF8.toInt())
             }
             background = vBg
         }
 
-        // Center reticle
+        // Retícula central
         val reticleCross = ImageView(this).apply {
             setImageResource(android.R.drawable.ic_menu_search)
-            setColorFilter(0x8838BDF8.toInt())
-            layoutParams = FrameLayout.LayoutParams(36, 36).apply {
+            setColorFilter(0x6638BDF8.toInt())
+            layoutParams = FrameLayout.LayoutParams(32, 32).apply {
                 gravity = Gravity.CENTER
             }
         }
         viewport.addView(reticleCross)
 
-        // Center Zoom badge
+        // Badge de Zoom no rodapé do viewport
         val reticleView = TextView(this).apply {
             text = "${String.format("%.1f", currentZoom)}x"
             setTextColor(0xFFFDE68A.toInt())
-            textSize = 14f
+            textSize = 13f
             paint.isFakeBoldText = true
             gravity = Gravity.CENTER
             val badgeBg = GradientDrawable().apply {
-                cornerRadius = 14f
-                setColor(0xCC000000.toInt())
+                cornerRadius = 12f
+                setColor(0xD0000000.toInt())
                 setStroke(1, 0xFF38BDF8.toInt())
             }
             background = badgeBg
-            setPadding(12, 4, 12, 4)
+            setPadding(10, 3, 10, 3)
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                bottomMargin = 8
+                bottomMargin = 6
             }
         }
         viewport.addView(reticleView)
-
         content.addView(viewport)
+
         root.addView(content)
 
-        // Dragging the focus window (in window mode)
-        if (!isFullScreenMode) {
-            var startX = 0
-            var startY = 0
-            var touchX = 0f
-            var touchY = 0f
+        // ==========================================
+        // 4. ALÇA DE PUXAR NA BORDA / CANTO INFERIOR DIREITO
+        // ==========================================
+        val resizeGrip = object : View(this) {
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0xFFFDE68A.toInt() // Amarelo alto contraste para fácil localização
+                strokeWidth = 3f
+                strokeCap = Paint.Cap.ROUND
+            }
 
-            windowHeader.setOnTouchListener { _, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        startX = params.x
-                        startY = params.y
-                        touchX = event.rawX
-                        touchY = event.rawY
-                        true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        params.x = startX + (event.rawX - touchX).toInt()
-                        params.y = startY + (event.rawY - touchY).toInt()
-                        focusWindowX = params.x
-                        focusWindowY = params.y
-                        windowManager.updateViewLayout(root, params)
-                        syncWithNativeAccessibility()
-                        true
-                    }
-                    else -> false
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val w = width.toFloat()
+                val h = height.toFloat()
+
+                // Desenha as ranhuras diagonais de redimensionamento clássicas ◢
+                canvas.drawLine(w - 10f, h - 22f, w - 22f, h - 10f, paint)
+                canvas.drawLine(w - 10f, h - 16f, w - 16f, h - 10f, paint)
+                canvas.drawLine(w - 10f, h - 10f, w - 10f, h - 10f, paint)
+            }
+        }.apply {
+            val gripBg = GradientDrawable().apply {
+                cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, 18f, 18f, 0f, 0f)
+                setColor(0xEE0F172A.toInt())
+                setStroke(2, 0xFFFDE68A.toInt())
+            }
+            background = gripBg
+            layoutParams = FrameLayout.LayoutParams(48, 48).apply {
+                gravity = Gravity.BOTTOM or Gravity.END
+            }
+        }
+        root.addView(resizeGrip)
+
+        // ==========================================
+        // EVENTOS DE TOQUE:
+        // 1. Top bar: ARRASTAR PARA MOVER A LENTE
+        // 2. Canto resizeGrip: PUXAR PARA REDIMENSIONAR
+        // ==========================================
+        var moveStartX = 0
+        var moveStartY = 0
+        var moveTouchX = 0f
+        var moveTouchY = 0f
+
+        topBar.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    moveStartX = params.x
+                    moveStartY = params.y
+                    moveTouchX = event.rawX
+                    moveTouchY = event.rawY
+                    true
                 }
+                MotionEvent.ACTION_MOVE -> {
+                    params.x = moveStartX + (event.rawX - moveTouchX).toInt()
+                    params.y = moveStartY + (event.rawY - moveTouchY).toInt()
+                    focusWindowX = params.x
+                    focusWindowY = params.y
+                    windowManager.updateViewLayout(root, params)
+                    syncWithNativeAccessibility()
+                    true
+                }
+                else -> false
+            }
+        }
+
+        var resizeStartX = 0f
+        var resizeStartY = 0f
+        var initialWidth = 0
+        var initialHeight = 0
+
+        resizeGrip.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    resizeStartX = event.rawX
+                    resizeStartY = event.rawY
+                    initialWidth = params.width
+                    initialHeight = params.height
+                    hapticHelper.performStepClick()
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = (event.rawX - resizeStartX).toInt()
+                    val dy = (event.rawY - resizeStartY).toInt()
+
+                    val maxW = (screenWidth - params.x).coerceAtLeast(minWindowW)
+                    val maxH = (screenHeight - params.y).coerceAtLeast(minWindowH)
+
+                    val newW = (initialWidth + dx).coerceIn(minWindowW, maxW)
+                    val newH = (initialHeight + dy).coerceIn(minWindowH, maxH)
+
+                    params.width = newW
+                    params.height = newH
+                    focusWindowWidth = newW
+                    focusWindowHeight = newH
+
+                    dimensionLabel?.text = "${newW}×${newH}"
+
+                    windowManager.updateViewLayout(root, params)
+                    syncWithNativeAccessibility()
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    hapticHelper.performStepClick()
+                    true
+                }
+                else -> false
             }
         }
 
         focusWindowView = root
         windowManager.addView(root, params)
         syncWithNativeAccessibility()
-    }
-
-    private fun recreateFocusWindow() {
-        if (focusWindowView != null) {
-            windowManager.removeView(focusWindowView)
-            focusWindowView = null
-        }
-        if (isZoomActive) {
-            showFocusWindow()
-        }
     }
 
     private fun updateFocusWindowVisibility() {
